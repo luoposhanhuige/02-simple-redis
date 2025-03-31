@@ -1,3 +1,6 @@
+// RESP is a simple text-based protocol used by Redis to communicate between clients and servers.
+// The protocol uses different prefixes to indicate the type of data being transmitted, and each data type ends with a CRLF (\r\n) sequence.
+
 /*
 - 如何解析 Frame
     - simple string: "+OK\r\n"
@@ -306,4 +309,8 @@ mod tests {
     // RespSet 与 RespArray 的区别在于，两者虽然都是用 Vec 存储，但 RespSet 特意用于与 把不同类型的元素通过 enum 统一封装为统一类型的 RespFrame，而 RespArray 则是用于存储相同类型的元素。
     // If you want a collection of values (not just unique values) of different types with only values and no keys, you can use a Vec in combination with an enum to encapsulate the different types. This allows you to store a heterogeneous collection of values in a single vector.
     // 当然，这只是刻意为之，rust 原生库中有 BTreeSet 和 HashSet 用于存储相同类型的元素，而 BTreeMap 和 HashMap 用于存储不同类型的元素。
+    // can RespArray instance has other RespArray instance as its element?
+    // yes, RespArray instance can have other RespArray instance as its element
+    // can RespSet instance has other RespSet instance as its element?
+    // yes, RespSet instance can have other RespSet instance as its element
 }

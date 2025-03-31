@@ -1,18 +1,48 @@
-// mod decode;
+mod decode;
 mod encode;
 
+use bytes::BytesMut;
 use enum_dispatch::enum_dispatch;
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
+use thiserror::Error;
 
 #[enum_dispatch]
 pub trait RespEncode {
     fn encode(self) -> Vec<u8>;
 }
 
-pub trait RespDecode {
-    fn decode(buf: Self) -> Result<RespFrame, String>;
+// pub trait RespDecode {
+//     fn decode(buf: Self) -> Result<RespFrame, String>;
+// }
+
+pub trait RespDecode: Sized {
+    const PREFIX: &'static str;
+    fn decode(buf: &mut BytesMut) -> Result<Self, RespError>;
+    fn expect_length(buf: &[u8]) -> Result<usize, RespError>; // This function helps in understanding how much data is required to fully decode a frame, which is crucial for handling incomplete or partial data.
 }
+// The RespDecode trait is designed to decode a buffer into a specific type that implements the trait. The result of the decode method is wrapped in a Result<Self, RespError> to handle potential errors that might occur during the decoding process. The expect_length method is used to determine the length of the buffer based on the RESP protocol.
+
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum RespError {
+    #[error("Invalid frame: {0}")]
+    InvalidFrame(String),
+    #[error("Invalid frame type: {0}")]
+    InvalidFrameType(String),
+    #[error("Invalid frame length： {0}")]
+    InvalidFrameLength(isize),
+    #[error("Frame is not complete")]
+    NotComplete,
+
+    #[error("Parse error: {0}")]
+    ParseIntError(#[from] std::num::ParseIntError), // Ok((end, s.parse()?)) in the fn parse_length may return a ParseIntError
+    #[error("Utf8 error: {0}")]
+    Utf8Error(#[from] std::str::Utf8Error),
+    #[error("Parse float error: {0}")]
+    ParseFloatError(#[from] std::num::ParseFloatError),
+}
+// The message being passed into {0} in #[error("Invalid frame type: {0}")] does not necessarily need to be of type String. It can be any type that implements the Display trait. The Display trait is used to convert the value into a string representation, which is then inserted into the {0} placeholder in the error message.
+// The RespError enum has a variant ParseIntError that can be created from a std::num::ParseIntError. The #[from] attribute is used to automatically implement the From trait.
 
 #[enum_dispatch(RespEncode)]
 #[derive(Debug, PartialEq, PartialOrd)]
@@ -169,6 +199,54 @@ impl Default for RespMap {
 impl RespSet {
     pub fn new(s: impl Into<Vec<RespFrame>>) -> Self {
         RespSet(s.into())
+    }
+}
+
+impl From<&str> for SimpleString {
+    fn from(s: &str) -> Self {
+        SimpleString(s.to_string())
+    }
+}
+
+impl From<&str> for RespFrame {
+    fn from(s: &str) -> Self {
+        SimpleString(s.to_string()).into()
+    }
+}
+
+impl From<&str> for SimpleError {
+    fn from(s: &str) -> Self {
+        SimpleError(s.to_string())
+    }
+}
+
+impl From<&str> for BulkString {
+    fn from(s: &str) -> Self {
+        BulkString(s.as_bytes().to_vec())
+    }
+}
+
+impl From<&[u8]> for BulkString {
+    fn from(s: &[u8]) -> Self {
+        BulkString(s.to_vec())
+    }
+}
+
+impl From<&[u8]> for RespFrame {
+    fn from(s: &[u8]) -> Self {
+        BulkString(s.to_vec()).into()
+    }
+}
+
+impl<const N: usize> From<&[u8; N]> for BulkString {
+    fn from(s: &[u8; N]) -> Self {
+        BulkString(s.to_vec())
+    }
+}
+
+impl<const N: usize> From<&[u8; N]> for RespFrame {
+    fn from(s: &[u8; N]) -> Self {
+        BulkString(s.to_vec()).into()
     }
 }
 
