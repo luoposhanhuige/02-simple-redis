@@ -41,12 +41,15 @@ pub trait CommandExecutor {
 // Represents all possible commands (Get, Set, HGet, etc.).
 // Uses enum_dispatch to automatically dispatch calls to the appropriate CommandExecutor implementation.
 #[enum_dispatch(CommandExecutor)]
+#[derive(Debug)]
 pub enum Command {
     Get(Get),
     Set(Set),
     HGet(HGet),
     HSet(HSet),
     HGetAll(HGetAll),
+    // unrecognized command
+    Unrecognized(Unrecognized),
 }
 
 // Each struct is designed to encapsulate the semantics of a specific Redis command.
@@ -140,6 +143,21 @@ pub struct HGetAll {
     key: String, // The hash map's name
 }
 
+#[derive(Debug)]
+pub struct Unrecognized;
+
+impl TryFrom<RespFrame> for Command {
+    type Error = CommandError;
+    fn try_from(v: RespFrame) -> Result<Self, Self::Error> {
+        match v {
+            RespFrame::Array(array) => array.try_into(),
+            _ => Err(CommandError::InvalidCommand(
+                "Command must be an Array".to_string(),
+            )),
+        }
+    }
+}
+
 // Yes, you are absolutely correct! The purpose of implementing TryFrom<RespArray> for Command is to dispatch the conversion logic to the appropriate real command (e.g., Get, Set, HGet, etc.) based on the first element of the RespArray.
 // This implementation acts as a command parser that determines which specific command struct to create and return.
 
@@ -202,15 +220,22 @@ impl TryFrom<RespArray> for Command {
                 b"hget" => Ok(HGet::try_from(v)?.into()),
                 b"hset" => Ok(HSet::try_from(v)?.into()),
                 b"hgetall" => Ok(HGetAll::try_from(v)?.into()),
-                _ => Err(CommandError::InvalidCommand(format!(
-                    "Invalid command: {}",
-                    String::from_utf8_lossy(cmd.as_ref())
-                ))),
+                // _ => Err(CommandError::InvalidCommand(format!(
+                //     "Invalid command: {}",
+                //     String::from_utf8_lossy(cmd.as_ref())
+                // ))),
+                _ => Ok(Unrecognized.into()),
             },
             _ => Err(CommandError::InvalidCommand(
                 "Command must have a BulkString as the first argument".to_string(),
             )),
         }
+    }
+}
+
+impl CommandExecutor for Unrecognized {
+    fn execute(self, _: &Backend) -> RespFrame {
+        RESP_OK.clone()
     }
 }
 
