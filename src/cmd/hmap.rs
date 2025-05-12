@@ -1,5 +1,6 @@
 use super::{extract_args, validate_command, CommandExecutor, HGet, HGetAll, HSet, RESP_OK};
-use crate::{cmd::CommandError, RespArray, RespFrame, RespMap};
+// use crate::{cmd::CommandError, RespArray, RespFrame, RespMap};
+use crate::{cmd::CommandError, BulkString, RespArray, RespFrame};
 
 impl CommandExecutor for HGet {
     fn execute(self, backend: &crate::Backend) -> RespFrame {
@@ -10,18 +11,64 @@ impl CommandExecutor for HGet {
     }
 }
 
+// impl CommandExecutor for HGetAll {
+//     fn execute(self, backend: &crate::Backend) -> RespFrame {
+//         let hmap = backend.hmap.get(&self.key);
+
+//         match hmap {
+//             Some(hmap) => {
+//                 let mut map = RespMap::new();
+//                 for v in hmap.iter() {
+//                     let key = v.key().to_owned();
+//                     map.insert(key, v.value().clone());
+//                 }
+//                 map.into()
+//             }
+//             None => RespArray::new([]).into(),
+//         }
+//     }
+// }
+
 impl CommandExecutor for HGetAll {
     fn execute(self, backend: &crate::Backend) -> RespFrame {
         let hmap = backend.hmap.get(&self.key);
 
         match hmap {
             Some(hmap) => {
-                let mut map = RespMap::new();
+                let mut data = Vec::with_capacity(hmap.len());
                 for v in hmap.iter() {
                     let key = v.key().to_owned();
-                    map.insert(key, v.value().clone());
+                    data.push((key, v.value().clone()));
                 }
-                map.into()
+
+                // sort_by is a method provided by Rust's Vec type.
+                // It sorts the elements of the vector in place (modifies the vector directly).
+                // You provide a closure (a function) to sort_by that defines how two elements should be compared.
+                if self.sort {
+                    data.sort_by(|a, b| a.0.cmp(&b.0));
+                    // No, you cannot replace &b.0 with b.0 in this case because b.0 is not a reference itself, even though b is a reference type.
+                    // Why &b.0 is Required
+                    // b.0 is also a &String, but .cmp requires a reference to the other parameter.
+                    // To pass b.0 as the other parameter, you need to explicitly borrow it with &b.0.
+                    // When you write &b.0, you are explicitly borrowing b.0
+                    // So, even though b is a reference (&(String, RespFrame)), b.0 is directly a &String, not a &&String.
+                }
+                let ret = data
+                    .into_iter()
+                    .flat_map(|(k, v)| vec![BulkString::from(k).into(), v]) // impl From<String> for BulkString
+                    .collect::<Vec<RespFrame>>();
+
+                // The flat_map method in Rust is used to transform each element of an iterator into another iterator
+                // and then flatten the resulting iterators into a single iterator.
+                // It combines the functionality of map (transforming elements) and flatten (flattening nested iterators).
+
+                // How flat_map Works
+                // Transform Each Element:
+                // For each element in the original iterator, flat_map applies a closure that returns an iterator (or something that can be converted into an iterator).
+                // Flatten the Result:
+                // The resulting iterators are flattened into a single iterator, so you get a sequence of all the elements from the nested iterators.
+
+                RespArray::new(ret).into()
             }
             None => RespArray::new([]).into(),
         }
@@ -62,6 +109,7 @@ impl TryFrom<RespArray> for HGetAll {
         match args.next() {
             Some(RespFrame::BulkString(key)) => Ok(HGetAll {
                 key: String::from_utf8(key.0)?,
+                sort: false,
             }),
             _ => Err(CommandError::InvalidArgument("Invalid key".to_string())),
         }
@@ -166,14 +214,21 @@ mod tests {
 
         let cmd = HGetAll {
             key: "map".to_string(),
+            sort: true,
         };
         let result = cmd.execute(&backend);
-        let mut expected = RespMap::new();
-        expected.insert("hello".to_string(), RespFrame::BulkString(b"world".into()));
-        expected.insert(
-            "hello1".to_string(),
-            RespFrame::BulkString(b"world1".into()),
-        );
+        // let mut expected = RespMap::new();
+        // expected.insert("hello".to_string(), RespFrame::BulkString(b"world".into()));
+        // expected.insert(
+        //     "hello1".to_string(),
+        //     RespFrame::BulkString(b"world1".into()),
+        // );
+        let expected = RespArray::new([
+            BulkString::from("hello").into(),
+            BulkString::from("world").into(),
+            BulkString::from("hello1").into(),
+            BulkString::from("world1").into(),
+        ]);
         assert_eq!(result, expected.into());
         Ok(())
     }

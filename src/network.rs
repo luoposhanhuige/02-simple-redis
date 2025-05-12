@@ -20,8 +20,7 @@ use tracing::info;
 // Used with tokio_util::codec::Framed to handle streams of RESP frames.
 #[derive(Debug)]
 struct RespFrameCodec; // The term codec is short for "coder-decoder"
-                       // What Does "Codec" Literally Mean?
-                       // The term codec is short for "coder-decoder". It refers to a system or component that:
+                       // It refers to a system or component that:
                        // Encodes structured data into a specific format (e.g., raw bytes for transmission).
                        // Decodes data from that format back into structured data.
                        // In the context of networking, a codec is used to handle the serialization and deserialization of data as it is sent and received over a network connection.
@@ -63,6 +62,9 @@ pub async fn stream_handler(stream: TcpStream, backend: Backend) -> Result<()> {
 
     // By default, Framed's second parameter is a codec type that implements both the Decoder and Encoder traits.
     // This codec is responsible for decoding incoming data into structured frames and encoding outgoing frames into raw bytes.
+
+    // The functionality of Framed is both a parser and a converter, depending on the context in which it is used.
+    // It acts as a high-level abstraction for handling streams of data by combining a transport layer (e.g., TcpStream) with a codec (e.g., RespFrameCodec) to handle decoding (parsing) and encoding (converting).
     let mut framed = Framed::new(stream, RespFrameCodec); // The term codec is short for "coder-decoder"
     loop {
         // Uses framed.next().await to read the next frame from the client.
@@ -90,6 +92,11 @@ pub async fn stream_handler(stream: TcpStream, backend: Backend) -> Result<()> {
 
 // Processes a single client request.
 // Converts the RESP frame into a Command, executes it, and generates a response.
+
+// Yes, that's correct! In the request_handler function,
+// the execution flow first calls TryFrom to parse the raw RESP frame into a structured Command,
+// and then it calls CommandExecutor to execute the parsed command.
+
 async fn request_handler(request: RedisRequest) -> Result<RedisResponse> {
     let (frame, backend) = (request.frame, request.backend);
     let cmd = Command::try_from(frame)?;

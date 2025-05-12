@@ -53,6 +53,42 @@ async fn main() -> Result<()> {
 // redis-cli
 // set hello world
 // get hello
+// 核心：redis-cli 是安装 官方 redisserver 之后的一个命令行工具，其能够在交互中，把用户的输入 encode 成 redis 协议的格式，类似 *2\r\n$3\r\nGET\r\n$5\r\nhello\r\n，
+// 然后，将其发送到 redis server；
+// redis server 或者你自己编写的 SIMPLE_REDIS 解析这个协议，即 decode，并执行相应的命令，最后将结果通过 redis-cli 直接输出给用户终端。
+
+// 127.0.0.1:6379> set hello world
+// OK
+// 127.0.0.1:6379> get hello
+// "world"
+// 127.0.0.1:6379> hgetall
+// Error: Server closed the connection
+// not connected> hset map hello world
+// OK
+// 127.0.0.1:6379> hset map goodbye lin
+// OK
+// 127.0.0.1:6379> hgetall map
+// 1# goodbye => "lin"
+// 2# hello => "world"
+
+// 为 HGetAll 添加了 sort 属性，
+// 并修改了 impl CommandExecutor for HGetAll 代码，增加排序逻辑
+// hgetall map 输出排序过的结果
+// ❯ redis-cli
+// 127.0.0.1:6379> set hello world
+// OK
+// 127.0.0.1:6379> get hello
+// "world"
+// 127.0.0.1:6379> hset map hello world
+// OK
+// 127.0.0.1:6379> hset map goodbye linxh
+// OK
+// 127.0.0.1:6379> hgetall map
+// 1) "hello"
+// 2) "world"
+// 3) "goodbye"
+// 4) "linxh"
+// 127.0.0.1:6379>
 
 // Execution Flow Example
 // Client Sends a Command

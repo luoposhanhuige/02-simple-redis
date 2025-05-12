@@ -2,6 +2,12 @@
 // It includes the logic for parsing, validating, and executing commands,
 // as well as the data structures and traits required to represent commands.
 
+// 定义了四个 structs: Get Set HGet HSet HGetAll
+// 这四个 structs 分别对应 Redis 的 GET、SET、HGET、HSET 和 HGETALL 命令。
+// 这四个 structs 通过 TryFrom trait 实现了从 RespArray 转换为 Command 的功能。
+// 这四个 structs 通过 CommandExecutor trait 实现了执行命令的功能。
+// CommandExecutor trait 内部的 execute 方法是对 Backend 中的 Dashmap 数据的操作，包括 get set hget hset hgetall 等操作。
+
 mod hmap;
 mod map;
 
@@ -141,6 +147,7 @@ pub struct HSet {
 #[derive(Debug)]
 pub struct HGetAll {
     key: String, // The hash map's name
+    sort: bool,
 }
 
 #[derive(Debug)]

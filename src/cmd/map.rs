@@ -1,6 +1,20 @@
 use super::{extract_args, validate_command, CommandExecutor, Get, Set, RESP_OK};
 use crate::{cmd::CommandError, RespArray, RespFrame, RespNull};
 
+// Key Takeaway
+// The connection between impl TryFrom<RespArray> for Get and impl CommandExecutor for Get is that:
+
+// TryFrom<RespArray> converts the raw RESP command into a structured Get command.
+// CommandExecutor executes the Get command by interacting with the backend and returning the result.
+// Together, they form a pipeline that processes the GET command from the client and produces the appropriate response.
+
+// Yes, exactly! The impl TryFrom<RespArray> for Get (and similarly for Set) acts as a parser that converts a RespArray (representing the raw RESP command sent by the client) into a structured command object (like Get or Set).
+// This is a critical step in the execution flow because it validates and extracts the necessary arguments from the raw command before executing it.
+
+// Yes, that's correct! In the request_handler function in network.rs,
+// the execution flow first calls TryFrom to parse the raw RESP frame into a structured Command,
+// and then it calls CommandExecutor to execute the parsed command.
+
 impl CommandExecutor for Get {
     fn execute(self, backend: &crate::Backend) -> RespFrame {
         match backend.get(&self.key) {
